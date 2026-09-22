@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Exact alarms so reminders fire at the precise time -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Auto-granted for alarm-clock apps on Android 13+; also unlocks the
+         Android 14 exemption that lets the alarm page open from background -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Lets the alarm page open over any other app, exactly like the
+         built-in Clock (exempt from background-activity-start limits) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Re-schedule reminders after device restart -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Vibration on alarm -->

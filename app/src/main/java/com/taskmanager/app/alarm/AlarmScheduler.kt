@@ -8,10 +8,11 @@ import android.os.Build
 import com.taskmanager.app.data.db.TaskDao
 
 /**
- * Schedules precise alarms with [AlarmManager.setExactAndAllowWhileIdle].
- * Works even when the app is closed. On Android 12+ (API 31) it checks
- * canScheduleExactAlarms() and falls back to setWindow when the user has
- * not granted the exact-alarm permission.
+ * Schedules alarms with [AlarmManager.setAlarmClock] — the exact API the
+ * built-in Clock app uses. It is always exact, fires through Doze and
+ * battery savers, needs no extra permission on any Android version, and
+ * shows the alarm icon in the status bar / lock screen just like the
+ * system clock.
  */
 class AlarmScheduler(
     private val context: Context,
@@ -30,20 +31,24 @@ class AlarmScheduler(
         } else null
 
     /**
-     * Schedules a reminder alarm for [taskId] at [triggerAtMillis].
-     * Returns true when an exact alarm was used.
+     * Schedules a reminder alarm for [taskId] at [triggerAtMillis] using the
+     * clock-app path (always exact). Returns true when scheduled.
      */
     fun scheduleReminder(taskId: Long, title: String, description: String, triggerAtMillis: Long): Boolean {
         if (triggerAtMillis <= System.currentTimeMillis()) return false
         val pi = reminderPendingIntent(taskId, title, description)
-        return if (canScheduleExact()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi)
-            true
-        } else {
-            // Inexact but still reliable fallback before the user grants exact alarms.
-            alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAtMillis, 10 * 60_000L, pi)
-            false
-        }
+        val showIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, com.taskmanager.app.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        alarmManager.setAlarmClock(
+            AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
+            pi,
+        )
+        return true
     }
 
     fun snooze(taskId: Long, title: String, description: String, minutes: Int): Boolean =

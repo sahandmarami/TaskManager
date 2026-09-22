@@ -293,7 +293,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    "نسخه ۱.۱.۰",
+                    "نسخه ۱.۲.۰",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -435,10 +435,61 @@ private fun AlarmPermissionsCard(container: AppContainer) {
         AppCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "برای اینکه آلارم در هر حالتی گوشی را به صفحه زنگ ببرد، این دو مجوز لازم است.",
+                    "برای اینکه آلارم در هر حالتی گوشی را به صفحه زنگ ببرد، این مجوزها لازم است.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                // ---- overlay: open alarm page over any app (clock-like) ----
+                val overlayGranted = remember(resumeKey) {
+                    android.provider.Settings.canDrawOverlays(context)
+                }
+                Column(Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(
+                                    if (overlayGranted) Color(0xFF16A34A) else Color(0xFFF59E0B),
+                                    CircleShape,
+                                )
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (overlayGranted) "نمایش روی برنامه‌های دیگر فعال است"
+                            else "نمایش روی برنامه‌های دیگر غیرفعال است",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (!overlayGranted) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "مهم‌ترین مجوز: صفحه آلارم را مثل ساعت خود گوشی روی هر برنامه‌ای باز می‌کند.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                try {
+                                    context.startActivity(
+                                        Intent(
+                                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            android.net.Uri.parse("package:${context.packageName}"),
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                } catch (_: Exception) {
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFF59E0B),
+                                contentColor = Color.White,
+                            ),
+                        ) { Text("فعال‌سازی نمایش روی برنامه‌ها") }
+                    }
+                }
 
                 // ---- full-screen intent (Android 14+) ----
                 if (NotificationHelper.fullScreenIntentSettingsIntent() != null) {
