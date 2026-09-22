@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Task Manager</string>
+    <string name="channel_reminders_name">یادآوری وظایف</string>
+    <string name="channel_reminders_description">اعلان‌های یادآوری وظایف با صدا و ویبره</string>
+</resources>
