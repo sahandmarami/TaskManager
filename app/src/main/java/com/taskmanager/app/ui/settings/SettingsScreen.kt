@@ -1,6 +1,8 @@
 package com.taskmanager.app.ui.settings
 
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -40,8 +42,10 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,6 +61,7 @@ import com.taskmanager.app.data.settings.AppSettings
 import com.taskmanager.app.di.AppContainer
 import com.taskmanager.app.domain.model.ThemeMode
 import com.taskmanager.app.ui.components.AppCard
+import com.taskmanager.app.alarm.NotificationHelper
 import com.taskmanager.app.ui.components.SectionTitle
 import com.taskmanager.app.ui.theme.CategoryColors
 import kotlinx.coroutines.Dispatchers
@@ -192,6 +197,11 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(16.dp))
 
+        // ---- مجوزهای آلارم ----
+        AlarmPermissionsCard(container)
+
+        Spacer(Modifier.height(16.dp))
+
         // ---- دسته‌بندی‌ها ----
         SectionTitle("دسته‌بندی‌ها")
         Spacer(Modifier.height(8.dp))
@@ -283,7 +293,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    "نسخه ۱.۰.۰",
+                    "نسخه ۱.۱.۰",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -390,6 +400,149 @@ fun SettingsScreen(
             },
             containerColor = MaterialTheme.colorScheme.surface,
         )
+    }
+}
+
+/**
+ * Live status of the two permissions the real alarm depends on:
+ *  - Full-screen intent (Android 14+): opens the alarm page automatically.
+ *  - Exact alarms (Android 12+): reminders fire at the precise minute.
+ * Status refreshes whenever the user returns from system settings.
+ */
+@Composable
+private fun AlarmPermissionsCard(container: AppContainer) {
+    val context = LocalContext.current
+
+    // Re-check on every resume (user may have granted in system settings).
+    var resumeKey by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) resumeKey++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val exactGranted = remember(resumeKey) { container.alarmScheduler.canScheduleExact() }
+    val fullScreenGranted = remember(resumeKey) {
+        NotificationHelper.canUseFullScreenIntent(context)
+    }
+
+    Column {
+        SectionTitle("مجوزهای آلارم")
+        Spacer(Modifier.height(8.dp))
+        AppCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "برای اینکه آلارم در هر حالتی گوشی را به صفحه زنگ ببرد، این دو مجوز لازم است.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                // ---- full-screen intent (Android 14+) ----
+                if (NotificationHelper.fullScreenIntentSettingsIntent() != null) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(
+                                        if (fullScreenGranted) Color(0xFF16A34A) else Color(0xFFF59E0B),
+                                        CircleShape,
+                                    )
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (fullScreenGranted) "هشدار تمام‌صفحه فعال است"
+                                else "هشدار تمام‌صفحه غیرفعال است",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (!fullScreenGranted) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "اندروید ۱۴+ بدون این مجوز صفحه زنگ را خودکار باز نمی‌کند.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = NotificationHelper.fullScreenIntentSettingsIntent()!!
+                                        intent.putExtra(
+                                            android.provider.Settings.EXTRA_APP_PACKAGE,
+                                            context.packageName,
+                                        )
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFF59E0B),
+                                    contentColor = Color.White,
+                                ),
+                            ) { Text("فعال‌سازی هشدار تمام‌صفحه") }
+                        }
+                    }
+                }
+
+                // ---- exact alarms (Android 12+) ----
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(
+                                        if (exactGranted) Color(0xFF16A34A) else Color(0xFFF59E0B),
+                                        CircleShape,
+                                    )
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (exactGranted) "آلارم دقیق فعال است"
+                                else "آلارم دقیق غیرفعال است",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (!exactGranted) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "بدون این مجوز، یادآوری‌ها ممکن است چند دقیقه دیرتر بیایند.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    try {
+                                        context.startActivity(
+                                            Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                                .putExtra(
+                                                    android.provider.Settings.EXTRA_APP_PACKAGE,
+                                                    context.packageName,
+                                                )
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                        )
+                                    } catch (_: Exception) {
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFF59E0B),
+                                    contentColor = Color.White,
+                                ),
+                            ) { Text("فعال‌سازی آلارم دقیق") }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
